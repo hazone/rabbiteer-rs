@@ -8,6 +8,8 @@ use mime;
 use client;
 use error::RbtError;
 use output;
+use amqp::{Channel};
+use std::panic;
 
 
 // helper function to turn a filename
@@ -50,6 +52,7 @@ pub fn do_publish(opts:amqp::Options, matches:&ArgMatches) -> Result<(),RbtError
         }
     };
 
+
     // the sendable wraps up the parsed parts
     let sendable = client::Sendable {
         exchange:     value_t!(matches, "exchange", String)?,
@@ -58,6 +61,8 @@ pub fn do_publish(opts:amqp::Options, matches:&ArgMatches) -> Result<(),RbtError
         headers:      values_t!(matches, "header", String).unwrap_or(vec![]),
         file_name:    file_name.to_owned(),
         reader:       reader,
+        priority:     value_t!(matches, "priority", u8).unwrap_or(0),
+        rpctimeout:   value_t!(matches, "rpctimeout", u64).unwrap_or(0)
     };
 
     // if we are doing an rpc with replyTo/correlationId, we set up a receiver
@@ -65,7 +70,7 @@ pub fn do_publish(opts:amqp::Options, matches:&ArgMatches) -> Result<(),RbtError
         false => None,
         true  => {
             let receive =
-                move |deliver:Deliver, props:BasicProperties, body:Vec<u8>| ->
+                move |channel: &mut Channel, deliver:Deliver, props:BasicProperties, body:Vec<u8>| ->
                 Result<(),RbtError> {
                     let msg = output::build_output(false, &deliver, &props, body)?;
 
@@ -78,9 +83,14 @@ pub fn do_publish(opts:amqp::Options, matches:&ArgMatches) -> Result<(),RbtError
                     handle.write(&msg)?;
                     handle.write(b"\n")?;
                     handle.flush()?;
-
-                    // it's the end
-                    ::std::process::exit(0)
+           
+                    // closing the channel
+                    channel.close(200, "Bye")?;
+                                       
+                    panic::set_hook(Box::new(|_| {
+                    }));
+                    //Until amqp library finds a way to exit consumer, terminate consumer_thread here.
+                    panic!(); 
                 };
 
             let receiver = client::Receiver {

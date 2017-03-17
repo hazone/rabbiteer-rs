@@ -72,6 +72,8 @@ Publishing pushes data from stdin or a file to an exchange.
 
     $ rabbiteer publish --help
     ...
+    FLAGS:
+        --rpc        Publish as RPC with replyTo and wait for reply.
     OPTIONS:
         -c, --content-type <content_type>    Content type such as application/json. Inferred from filename if
                                              possible.
@@ -79,7 +81,8 @@ Publishing pushes data from stdin or a file to an exchange.
         -f, --file <file>                    Filename (- is stdin) [default: -]
         -H, --header <header>...             Header on the form "My-Header: Value"
         -r, --routing-key <routing_key>      Routing key [default: ]
-
+        -z, --priority <priority>            Priority
+        -t, --rpctimeout <rpctimeout>        RPC timeout in milliseconds
 
 
 ### Example
@@ -97,6 +100,15 @@ Content-type is inferred if possible.
 
     $ rabbiteer -u admin -p admin -v prod publish -e myexchange -H "batch: true" -f ./foo.json
 
+#### Supports RabbitMQ style RPC
+
+Using the `replyTo` header.
+
+    $ CONF=conf.json rabbiteer publish -e myservice -r somecall --rpc -f ./foo.json
+    
+Calls `myservice/somecall` using the contents of file `foo.json` and sets up
+a `replyTo` header and waits the the rpc reply. The reply will be printed
+to stdout.
 
 ## Subscribe
 
